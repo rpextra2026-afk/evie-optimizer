@@ -33,7 +33,6 @@ optimizer = EvieAmplifyOptimizer(model.parameters(), lr=1e-3, well_pos_max=8.0)
 ```
 evie-optimizer/
 ├─ assets/architecture.png  # method diagram
-├─ ablation.py              # ablation study (Evie / Evie-Amplify arms)
 ├─ finance/                 # S&P-100 next-day return regression
 │  ├─ benchmark/            # main benchmark (run1_part*)
 │  ├─ batchsize/            # batch size 2,4,8,16,64
