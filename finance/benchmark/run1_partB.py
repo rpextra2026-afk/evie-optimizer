@@ -231,8 +231,8 @@ def _spatial_avg(h):
     return h.clone()
 
 
-class RSCOOptimizer(torch.optim.Optimizer):
-    """Base RSCO. gamma0 is auto-calibrated ONCE, at a step in [100,150],
+class EvieOptimizer(torch.optim.Optimizer):
+    """Base Evie. gamma0 is auto-calibrated ONCE, at a step in [100,150],
     using a SEPARATE fast-EMA variance estimate (beta=FAST_EMA_BETA) that is
     tracked independently of the optimizer's own (slow, beta2=0.999) m1/m2
     state used in the actual update rule."""
@@ -263,7 +263,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
             new_g0 = float(np.clip((1.0 / target - 1.0) / mean_s2, 10.0, 5000.0))
             group['gamma0'] = new_g0
             group['calibrated'] = True
-            log(f"    [RSCO] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
+            log(f"    [Evie] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -307,7 +307,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
         return loss
 
 
-class RSCOAmplifyOptimizer(torch.optim.Optimizer):
+class EvieAmplifyOptimizer(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
                  well_pos_max=WELL_POS_MAX, fast_beta=FAST_EMA_BETA):
@@ -335,7 +335,7 @@ class RSCOAmplifyOptimizer(torch.optim.Optimizer):
             new_g0 = float(np.clip((1.0 / target - 1.0) / mean_s2, 10.0, 5000.0))
             group['gamma0'] = new_g0
             group['calibrated'] = True
-            log(f"    [RSCO-Amplify] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
+            log(f"    [Evie-Amplify] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -485,11 +485,11 @@ class AdaHessianOptimizer(torch.optim.Optimizer):
 
 
 def build_optimizer(opt_name, model, lr):
-    if opt_name == "RSCO":
-        return RSCOOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+    if opt_name == "Evie":
+        return EvieOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                               target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY)
-    elif opt_name == "RSCO-Amplify":
-        return RSCOAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+    elif opt_name == "Evie-Amplify":
+        return EvieAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                                      target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY,
                                      well_pos_max=WELL_POS_MAX)
     elif opt_name == "Sophia":
@@ -501,7 +501,7 @@ def build_optimizer(opt_name, model, lr):
     else:
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=WEIGHT_DECAY)
 
-OPT_NAMES = ["AdamW", "RSCO-Amplify"]  # PART B of 3 (parallel split)
+OPT_NAMES = ["AdamW", "Evie-Amplify"]  # PART B of 3 (parallel split)
 HESSIAN_CONSUMERS = {"Sophia", "AdaHessian"}
 
 # ==============================================================================
@@ -538,8 +538,8 @@ def hutchinson_hessian(model, params, X, y, criterion, n_hutch=N_HUTCH,
     return h_acc
 
 # NOTE: GNB estimator removed. Sophia now uses the SAME Hutchinson diagonal
-# estimator as AdaHessian (and as the passive probe run for AdamW/RSCO/
-# RSCO-Amplify) — one Hessian estimator (Hutchinson) for all 5 optimizers.
+# estimator as AdaHessian (and as the passive probe run for AdamW/Evie/
+# Evie-Amplify) — one Hessian estimator (Hutchinson) for all 5 optimizers.
 
 # ==============================================================================
 #  MEMORY / EVAL
@@ -646,7 +646,7 @@ def run_experiment(opt_name, lr, ticker, seed, batch_size=BATCH_SIZE_DEFAULT,
     cumulative_flops = 0.0
     fwd_flops_per_batch = estimate_fwd_flops(model, batch_size)
     is_hessian_consumer = opt_name in HESSIAN_CONSUMERS
-    is_rsco_family = opt_name in ("RSCO", "RSCO-Amplify")
+    is_evie_family = opt_name in ("Evie", "Evie-Amplify")
 
     loader_iter = itertools.cycle(train_loader)
     best_val = float('inf'); best_state = None
@@ -678,7 +678,7 @@ def run_experiment(opt_name, lr, ticker, seed, batch_size=BATCH_SIZE_DEFAULT,
         if ran_probe:
             # Single Hessian estimator (Hutchinson diagonal) for ALL 5
             # optimizers. Sophia and AdaHessian CONSUME it into their update
-            # rule (feed_optimizer=True); AdamW/RSCO/RSCO-Amplify only get it
+            # rule (feed_optimizer=True); AdamW/Evie/Evie-Amplify only get it
             # PASSIVELY (feed_optimizer=False) so hess_norm/hess_cv are still
             # reported for every optimizer, per spec.
             h_list = hutchinson_hessian(model, params, X_batch, y_batch, criterion,
@@ -698,7 +698,7 @@ def run_experiment(opt_name, lr, ticker, seed, batch_size=BATCH_SIZE_DEFAULT,
         optimizer.step()
         scheduler.step()
 
-        if is_rsco_family and not calibrated_once and step == CALIBRATE_STEP:
+        if is_evie_family and not calibrated_once and step == CALIBRATE_STEP:
             optimizer.calibrate_gamma0()
             calibrated_once = True
 
@@ -840,10 +840,10 @@ def cross_ticker_score(agg_by_ticker, opt_names, tickers):
 
 # ==============================================================================
 #  FINAL SINGLE TABLE  (per spec: rows=optimizer, all metrics, mean+-std,
-#  winner column, RSCO-Amplify vs AdamW %delta + p_holm)
+#  winner column, Evie-Amplify vs AdamW %delta + p_holm)
 # ==============================================================================
 def build_final_table(agg_by_ticker, opt_names, tickers):
-    challenger = "RSCO-Amplify"
+    challenger = "Evie-Amplify"
     fewshot = cross_ticker_score(agg_by_ticker, opt_names, tickers)
 
     # per-optimizer mean+-std across tickers (of the per-ticker seed-medians)
@@ -870,7 +870,7 @@ def build_final_table(agg_by_ticker, opt_names, tickers):
             continue
         winners[k] = min(candidates, key=candidates.get) if lb else max(candidates, key=candidates.get)
 
-    # RSCO-Amplify vs AdamW: per-metric Wilcoxon on paired per-ticker medians + Holm-Bonferroni
+    # Evie-Amplify vs AdamW: per-metric Wilcoxon on paired per-ticker medians + Holm-Bonferroni
     # Only computable when this run's opt_names includes both sides of the comparison
     # (a run split across parallel scripts may only contain one of the two).
     raw_p = {}
@@ -932,14 +932,14 @@ def print_final_table(stats, winners, delta_pct, corrected_p, all_keys, opt_name
         row += f"{winners[k]:>{opt_col_w}}"
         log(row)
     log_sep("-", 200)
-    log("  RSCO-Amplify vs AdamW  (median %delta, positive = RSCO-Amplify better; direction-aware; Holm-Bonferroni corrected p)")
-    if "RSCO-Amplify" in opt_names and "AdamW" in opt_names:
+    log("  Evie-Amplify vs AdamW  (median %delta, positive = Evie-Amplify better; direction-aware; Holm-Bonferroni corrected p)")
+    if "Evie-Amplify" in opt_names and "AdamW" in opt_names:
         for k in METRIC_KEYS:
             d = delta_pct.get(k, float('nan'))
             p = corrected_p.get(k, float('nan'))
             log(f"    {k:<18}  %delta={d:+7.2f}%   p_holm={p:.3e}")
     else:
-        log("    (skipped: this run does not include both RSCO-Amplify and AdamW)")
+        log("    (skipped: this run does not include both Evie-Amplify and AdamW)")
     log_sep("=", 200)
 
 # ==============================================================================
@@ -966,7 +966,7 @@ def write_csv(raw_by_opt_ticker, opt_names, tickers, seeds, lr_used):
 # ==============================================================================
 def main():
     log_sep("=")
-    log(f"  RUN 1 PART B (AdamW, RSCO-Amplify)  |  device={device}  torch={torch.__version__}")
+    log(f"  RUN 1 PART B (AdamW, Evie-Amplify)  |  device={device}  torch={torch.__version__}")
     log_sep("=")
 
     ckpt = load_checkpoint()

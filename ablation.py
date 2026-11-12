@@ -108,7 +108,7 @@ def set_seed(seed):
 #  OPTIMIZERS -- copied VERBATIM from the original stella_ablation.py.
 #  Do not edit the math below this line under any circumstance.
 # ==============================================================================
-class RSCOOptimizer(torch.optim.Optimizer):
+class EvieOptimizer(torch.optim.Optimizer):
     """Base Stella. gamma0 auto-calibrated ONCE at step in [100,150] from a
     separate fast-EMA variance estimate. Diagnostics (gate value, sigma^2,
     gamma_t, floor-active flag) are recorded per step for later aggregation;
@@ -245,7 +245,7 @@ class StellaFixedGamma(torch.optim.Optimizer):
         return loss
 
 
-class RSCOAmplifyOptimizer(torch.optim.Optimizer):
+class EvieAmplifyOptimizer(torch.optim.Optimizer):
     """Stella-Amplify, copied verbatim (math untouched)."""
     def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
@@ -335,7 +335,7 @@ def build_optimizer(arm_name, model, lr, gamma_fixed_value=None, collect_diagnos
     if arm_name == "AdamW":
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=WEIGHT_DECAY)
     elif arm_name == "Stella":
-        return RSCOOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+        return EvieOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                               target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY,
                               collect_diagnostics=collect_diagnostics)
     elif arm_name == "Stella-FixedGamma":
@@ -344,7 +344,7 @@ def build_optimizer(arm_name, model, lr, gamma_fixed_value=None, collect_diagnos
                                  weight_decay=WEIGHT_DECAY,
                                  collect_diagnostics=collect_diagnostics)
     elif arm_name == "Stella-Amplify":
-        return RSCOAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+        return EvieAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                                      target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY,
                                      well_pos_max=WELL_POS_MAX,
                                      collect_diagnostics=collect_diagnostics)

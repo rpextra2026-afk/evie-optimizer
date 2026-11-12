@@ -234,7 +234,7 @@ def _spatial_avg(h):
    return h.clone()
 
 
-class RSCOOptimizer(torch.optim.Optimizer):
+class EvieOptimizer(torch.optim.Optimizer):
    def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                 beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
                 fast_beta=FAST_EMA_BETA):
@@ -300,7 +300,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
        return loss
 
 
-class RSCOAmplifyOptimizer(torch.optim.Optimizer):
+class EvieAmplifyOptimizer(torch.optim.Optimizer):
    def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                 beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
                 well_pos_max=WELL_POS_MAX, fast_beta=FAST_EMA_BETA):
@@ -466,10 +466,10 @@ class AdaHessianOptimizer(torch.optim.Optimizer):
 
 
 def build_optimizer(opt_name, model, lr):
-   if opt_name == "RSCO":
-       return RSCOOptimizer(model.parameters(), lr=lr, gamma0=1.0, target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY)
-   elif opt_name == "RSCO-Amplify":
-       return RSCOAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0, target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY, well_pos_max=WELL_POS_MAX)
+   if opt_name == "Evie":
+       return EvieOptimizer(model.parameters(), lr=lr, gamma0=1.0, target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY)
+   elif opt_name == "Evie-Amplify":
+       return EvieAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0, target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY, well_pos_max=WELL_POS_MAX)
    elif opt_name == "Sophia":
        return SophiaOptimizer(model.parameters(), lr=lr, betas=(0.965, 0.99), rho=0.04, weight_decay=WEIGHT_DECAY)
    elif opt_name == "AdaHessian":
@@ -593,7 +593,7 @@ def _run_experiment_unsafe(opt_name, lr, seed, batch_size=BATCH_SIZE_DEFAULT, wi
    cumulative_flops = 0.0
    fwd_flops_per_batch = estimate_fwd_flops(model, batch_size)
    is_hessian_consumer = opt_name in HESSIAN_CONSUMERS
-   is_rsco_family = opt_name in ("RSCO", "RSCO-Amplify")
+   is_evie_family = opt_name in ("Evie", "Evie-Amplify")
 
 
    loader_iter = itertools.cycle(train_loader)
@@ -645,7 +645,7 @@ def _run_experiment_unsafe(opt_name, lr, seed, batch_size=BATCH_SIZE_DEFAULT, wi
        scheduler.step()
 
 
-       if is_rsco_family and not calibrated_once and step == CALIBRATE_STEP:
+       if is_evie_family and not calibrated_once and step == CALIBRATE_STEP:
            optimizer.calibrate_gamma0()
            calibrated_once = True
 
@@ -756,7 +756,7 @@ def holm_bonferroni(pvals_dict):
 
 
 def build_final_table(raw, opt_names, seeds):
-   challenger = "RSCO-Amplify"
+   challenger = "Evie-Amplify"
    stats = aggregate_seeds(raw, opt_names, seeds)
   
    winners = {}
@@ -821,7 +821,7 @@ def print_final_table(stats, winners, delta_pct, corrected_p, opt_names):
        log(row)
    log_sep("-", 200)
    log("  Challenger vs AdamW  (median %delta, direction-aware; Wilcoxon + Holm-Bonferroni)")
-   can_compare = ("RSCO-Amplify" in opt_names) and ("AdamW" in opt_names)
+   can_compare = ("Evie-Amplify" in opt_names) and ("AdamW" in opt_names)
    if can_compare:
        for k in METRIC_KEYS:
            d = delta_pct.get(k, float('nan'))

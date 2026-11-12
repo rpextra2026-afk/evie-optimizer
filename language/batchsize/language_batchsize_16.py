@@ -344,7 +344,7 @@ def _spatial_avg(h):
     return h.clone()
 
 
-class RSCOOptimizer(torch.optim.Optimizer):
+class EvieOptimizer(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
                  fast_beta=FAST_EMA_BETA):
@@ -373,7 +373,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
             new_g0 = float(np.clip((1.0 / target - 1.0) / mean_s2, 10.0, 5000.0))
             group['gamma0'] = new_g0
             group['calibrated'] = True
-            log(f"    [RSCO] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
+            log(f"    [Evie] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -422,7 +422,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
         return loss
 
 
-class RSCOAmplifyOptimizer(torch.optim.Optimizer):
+class EvieAmplifyOptimizer(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
                  well_pos_max=WELL_POS_MAX, fast_beta=FAST_EMA_BETA):
@@ -451,7 +451,7 @@ class RSCOAmplifyOptimizer(torch.optim.Optimizer):
             new_g0 = float(np.clip((1.0 / target - 1.0) / mean_s2, 10.0, 5000.0))
             group['gamma0'] = new_g0
             group['calibrated'] = True
-            log(f"    [RSCO-Amplify] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
+            log(f"    [Evie-Amplify] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -609,11 +609,11 @@ class AdaHessianOptimizer(torch.optim.Optimizer):
 
 
 def build_optimizer(opt_name, model, lr):
-    if opt_name == "RSCO":
-        return RSCOOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+    if opt_name == "Evie":
+        return EvieOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                               target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY)
-    elif opt_name == "RSCO-Amplify":
-        return RSCOAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+    elif opt_name == "Evie-Amplify":
+        return EvieAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                                      target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY,
                                      well_pos_max=WELL_POS_MAX)
     elif opt_name == "Sophia":
@@ -625,7 +625,7 @@ def build_optimizer(opt_name, model, lr):
     else:
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=WEIGHT_DECAY)
 
-OPT_NAMES = ["AdamW", "RSCO", "RSCO-Amplify", "Sophia", "AdaHessian"]  # full 5-way, matching finance sweep
+OPT_NAMES = ["AdamW", "Evie", "Evie-Amplify", "Sophia", "AdaHessian"]  # full 5-way, matching finance sweep
 HESSIAN_CONSUMERS = {"Sophia", "AdaHessian"}
 
 # ==============================================================================
@@ -771,7 +771,7 @@ def _run_experiment_unsafe(opt_name, lr, shard, seed, batch_size,
     cumulative_flops = 0.0
     fwd_flops_per_batch = estimate_fwd_flops(model, batch_size)
     is_hessian_consumer = opt_name in HESSIAN_CONSUMERS
-    is_rsco_family = opt_name in ("RSCO", "RSCO-Amplify")
+    is_evie_family = opt_name in ("Evie", "Evie-Amplify")
 
     loader_iter = itertools.cycle(train_loader)
     best_val = float('inf'); best_state = None
@@ -823,7 +823,7 @@ def _run_experiment_unsafe(opt_name, lr, shard, seed, batch_size,
         if isinstance(cc, torch.Tensor) or not (isinstance(cc, float) and math.isnan(cc)):
             clip_coord_fracs.append(cc)
 
-        if is_rsco_family and not calibrated_once and step == CALIBRATE_STEP:
+        if is_evie_family and not calibrated_once and step == CALIBRATE_STEP:
             optimizer.calibrate_gamma0()
             calibrated_once = True
 
@@ -891,7 +891,7 @@ def _run_experiment_unsafe(opt_name, lr, shard, seed, batch_size,
 
     # ppl is computed over the reduced VOCAB_SIZE output space (see
     # metadata['vocab_note'] written out in main()); it's valid for
-    # within-run optimizer comparisons (e.g. RSCO vs AdamW, same vocab
+    # within-run optimizer comparisons (e.g. Evie vs AdamW, same vocab
     # throughout) but is NOT numerically comparable to published WikiText-2
     # perplexities, which conventionally use ~20k-33k vocab.
     ppl = math.exp(min(test_loss_final, 50.0)) if not math.isnan(test_loss_final) else float('nan')
@@ -1031,7 +1031,7 @@ def holm_bonferroni(pvals_dict):
 #  BATCH-SIZE TREND TABLES
 # ==============================================================================
 def build_batch_trend_tables(agg_by_batch_shard, opt_names, shards, batch_sizes):
-    challenger = "RSCO-Amplify"
+    challenger = "Evie-Amplify"
 
     loss_stats = {}
     for b in batch_sizes:
@@ -1084,7 +1084,7 @@ def print_batch_trend_tables(loss_stats, delta_pct, corrected_p, opt_names, batc
             row += f"{cell:>22}"
         log(row)
     log_sep("-", 160)
-    log("  RSCO-Amplify vs AdamW on valloss  (%delta, positive = RSCO-Amplify better; Holm-Bonferroni p across batch sizes)")
+    log("  Evie-Amplify vs AdamW on valloss  (%delta, positive = Evie-Amplify better; Holm-Bonferroni p across batch sizes)")
     log(f"  {'Batch':<8}{'%delta':>12}{'p_holm':>14}")
     for b in batch_sizes:
         d = delta_pct.get(b, float('nan'))

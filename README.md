@@ -2,7 +2,11 @@
 
 Code for the Evie family of optimizers, which multiply the Adam-style adaptive step by a noise-dependent gate derived from a risk-sensitive (Jacobson-Whittle) control formulation of training. Coordinates with higher gradient-noise variance are shrunk more. **Evie-Amplify** additionally allows bounded amplification on low-variance coordinates.
 
-> Some scripts and logs use the earlier internal names `RSCO` (= Evie) and `RSCO-Amplify` (= Evie-Amplify).
+![Evie architecture](assets/architecture.png)
+
+## Overview
+
+Each step samples a mini-batch, backpropagates the loss, and keeps running gradient moments. The variance proxy `s_t = max(m2_hat - m1_hat^2, 0)` is scaled by a calibrated `gamma0` into an exposure `z_t`, which sets a per-coordinate gate: Evie only shrinks the Adam step, Evie-Amplify additionally allows bounded amplification (capped at 8). The gated, normalized-momentum update is applied with decoupled weight decay. Experiments cover finance (S&P 500 stocks, MLP), vision (CIFAR-100, light CNN) and language (WikiText-2, NPLM) across batch sizes 2 to 64.
 
 ## Packages
 
@@ -28,6 +32,7 @@ optimizer = EvieAmplifyOptimizer(model.parameters(), lr=1e-3, well_pos_max=8.0)
 
 ```
 evie-optimizer/
+├─ assets/architecture.png  # method diagram
 ├─ ablation.py              # ablation study (Evie / Evie-Amplify arms)
 ├─ finance/                 # S&P-100 next-day return regression
 │  ├─ benchmark/            # main benchmark (run1_part*)

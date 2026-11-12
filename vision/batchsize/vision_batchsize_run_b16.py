@@ -224,8 +224,8 @@ def _spatial_avg(h):
     return h.clone()
 
 
-class RSCOOptimizer(torch.optim.Optimizer):
-    """Base RSCO. gamma0 is auto-calibrated ONCE, at a step in [100,150],
+class EvieOptimizer(torch.optim.Optimizer):
+    """Base Evie. gamma0 is auto-calibrated ONCE, at a step in [100,150],
     using a SEPARATE fast-EMA variance estimate (beta=FAST_EMA_BETA) that is
     tracked independently of the optimizer's own (slow, beta2=0.999) m1/m2
     state used in the actual update rule."""
@@ -256,7 +256,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
             new_g0 = float(np.clip((1.0 / target - 1.0) / mean_s2, 10.0, 5000.0))
             group['gamma0'] = new_g0
             group['calibrated'] = True
-            log(f"    [RSCO] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
+            log(f"    [Evie] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -298,7 +298,7 @@ class RSCOOptimizer(torch.optim.Optimizer):
         return loss
 
 
-class RSCOAmplifyOptimizer(torch.optim.Optimizer):
+class EvieAmplifyOptimizer(torch.optim.Optimizer):
     def __init__(self, params, lr=1e-3, gamma0=1.0, target_wp=TARGET_WP,
                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=0.0,
                  well_pos_max=WELL_POS_MAX, fast_beta=FAST_EMA_BETA):
@@ -326,7 +326,7 @@ class RSCOAmplifyOptimizer(torch.optim.Optimizer):
             new_g0 = float(np.clip((1.0 / target - 1.0) / mean_s2, 10.0, 5000.0))
             group['gamma0'] = new_g0
             group['calibrated'] = True
-            log(f"    [RSCO-Amplify] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
+            log(f"    [Evie-Amplify] gamma0={new_g0:.1f}  fast_sigma2={mean_s2:.2e}")
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -476,11 +476,11 @@ class AdaHessianOptimizer(torch.optim.Optimizer):
 
 
 def build_optimizer(opt_name, model, lr):
-    if opt_name == "RSCO":
-        return RSCOOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+    if opt_name == "Evie":
+        return EvieOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                               target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY)
-    elif opt_name == "RSCO-Amplify":
-        return RSCOAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
+    elif opt_name == "Evie-Amplify":
+        return EvieAmplifyOptimizer(model.parameters(), lr=lr, gamma0=1.0,
                                      target_wp=TARGET_WP, weight_decay=WEIGHT_DECAY,
                                      well_pos_max=WELL_POS_MAX)
     elif opt_name == "Sophia":
@@ -492,7 +492,7 @@ def build_optimizer(opt_name, model, lr):
     else:
         return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=WEIGHT_DECAY)
 
-OPT_NAMES = ["AdamW", "RSCO", "RSCO-Amplify", "Sophia", "AdaHessian"]
+OPT_NAMES = ["AdamW", "Evie", "Evie-Amplify", "Sophia", "AdaHessian"]
 HESSIAN_CONSUMERS = {"Sophia", "AdaHessian"}
 
 # ==============================================================================
@@ -628,7 +628,7 @@ def _run_experiment_unsafe(opt_name, lr, seed, batch_size, width=MODEL_WIDTH_DEF
     cumulative_flops = 0.0
     fwd_flops_per_batch = estimate_fwd_flops(model, batch_size)
     is_hessian_consumer = opt_name in HESSIAN_CONSUMERS
-    is_rsco_family = opt_name in ("RSCO", "RSCO-Amplify")
+    is_evie_family = opt_name in ("Evie", "Evie-Amplify")
 
     loader_iter = itertools.cycle(train_loader)
     best_val_loss = float('inf'); best_state = None
@@ -673,7 +673,7 @@ def _run_experiment_unsafe(opt_name, lr, seed, batch_size, width=MODEL_WIDTH_DEF
         optimizer.step()
         scheduler.step()
 
-        if is_rsco_family and not calibrated_once and step == CALIBRATE_STEP:
+        if is_evie_family and not calibrated_once and step == CALIBRATE_STEP:
             optimizer.calibrate_gamma0()
             calibrated_once = True
 
@@ -797,12 +797,12 @@ def holm_bonferroni(pvals_dict):
 # ==============================================================================
 #  BATCH-SIZE TREND TABLES
 #  (a) test_top1 mean+-std, rows=batch size, cols=optimizer
-#  (b) RSCO-Amplify vs AdamW %delta (+ p_holm, corrected jointly across the
+#  (b) Evie-Amplify vs AdamW %delta (+ p_holm, corrected jointly across the
 #      batch-size rows) on test_top1 (higher is better; positive %delta means
-#      RSCO-Amplify better), rows=batch size
+#      Evie-Amplify better), rows=batch size
 # ==============================================================================
 def build_batch_trend_tables(raw_by_batch_opt_seed, opt_names, seeds, batch_sizes):
-    challenger = "RSCO-Amplify"
+    challenger = "Evie-Amplify"
 
     # (a) mean+-std test_top1 per (batch, opt), across seeds
     top1_stats = {}
@@ -814,7 +814,7 @@ def build_batch_trend_tables(raw_by_batch_opt_seed, opt_names, seeds, batch_size
                     and not math.isnan(raw_by_batch_opt_seed[b][opt][s]['test_top1'])]
             top1_stats[b][opt] = (float(np.mean(vals)), float(np.std(vals))) if vals else (float('nan'), float('nan'))
 
-    # (b) RSCO-Amplify vs AdamW %delta on test_top1 + Wilcoxon,
+    # (b) Evie-Amplify vs AdamW %delta on test_top1 + Wilcoxon,
     # Holm-Bonferroni corrected jointly across all batch-size rows
     raw_p = {}
     delta_pct = {}
@@ -835,7 +835,7 @@ def build_batch_trend_tables(raw_by_batch_opt_seed, opt_names, seeds, batch_size
         raw_p[b] = p
         if b_vals and c_vals:
             a_med, c_med = float(np.median(b_vals)), float(np.median(c_vals))
-            # higher top1 is better -> positive %delta means RSCO-Amplify better
+            # higher top1 is better -> positive %delta means Evie-Amplify better
             delta_pct[b] = (c_med - a_med) / abs(a_med) * 100.0 if a_med != 0 else float('nan')
         else:
             delta_pct[b] = float('nan')
@@ -860,7 +860,7 @@ def print_batch_trend_tables(top1_stats, delta_pct, corrected_p, opt_names, batc
             row += f"{cell:>22}"
         log(row)
     log_sep("-", 160)
-    log("  RSCO-Amplify vs AdamW on test top-1 (%delta, positive = RSCO-Amplify better; Holm-Bonferroni p across batch sizes)")
+    log("  Evie-Amplify vs AdamW on test top-1 (%delta, positive = Evie-Amplify better; Holm-Bonferroni p across batch sizes)")
     log(f"  {'Batch':<8}{'%delta':>12}{'p_holm':>14}")
     for b in batch_sizes:
         d = delta_pct.get(b, float('nan'))
