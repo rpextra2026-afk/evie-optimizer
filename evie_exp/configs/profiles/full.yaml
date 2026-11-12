@@ -1,0 +1,7 @@
+# not wanted (0.5); kept for completeness
+arms: [AdamW, Evie, FixedGamma, EvieAmplify]
+phase_b: true
+extra_arms: [FixedGammaOwn]
+seeds_per_unit: {vision: [42, 43, 44], finance: [42, 43, 44], language: [42, 43, 44]}
+tune_frac: 1.0
+tune_seeds: {vision: [1001, 1002, 1003], finance: [1001], language: [1001]}

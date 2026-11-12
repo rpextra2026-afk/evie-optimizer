@@ -1,0 +1,7 @@
+# CONFIRMED by the owner (rev 4, 0.5 decision 5): the profile to implement and run
+arms: [AdamW, Evie, FixedGamma, EvieAmplify]
+phase_b: true                  # adds M1, M2
+extra_arms: [FixedGammaOwn]    # runs at Evie's selected LR; no tuning
+seeds_per_unit: {vision: [42, 43, 44], finance: [42], language: [42, 43, 44]}
+tune_frac: 0.4
+tune_seeds: {vision: [1001, 1002], finance: [1001], language: [1001]}

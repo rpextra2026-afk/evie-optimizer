@@ -1,0 +1,19 @@
+# Ablation of Evie-Amplify (EA). EA multiplier = AdamW step * m_0(x)/sqrt(w),  x = gamma0 * sigma2,
+# m_0(x) = sqrt((1+x)/(1+2x)), gamma_t harmonic, gamma0 calibrated once at step 125 (before that gamma0 = 1: "warm-up gate").
+# Every arm below removes exactly one ingredient, so each contrast is a single-factor test.
+arms: [AdamW, Evie, EvieAmplify, EA_noRecenter]          # tuned: quarter-decade grid + refinement, same protocol
+derived:                                                  # run at EA's selected LR, never tuned
+  M1: EvieAmplify             # constant 1/sqrt(w), no gate           -> gate effect at fixed scale
+  EA_noWarmup: EvieAmplify    # gamma0 = 0 until calibration          -> warm-up gate
+  EA_fixedG0: EvieAmplify     # gamma0 = 1, never calibrated          -> calibration
+  EA_fixedSched: EvieAmplify  # warm-up off + constant gamma          -> harmonic schedule (contrast with EA_noWarmup)
+family:                                                   # confirmatory family (Holm), declared before any run
+  - [EvieAmplify, AdamW]          # does EA beat tuned AdamW?
+  - [EvieAmplify, M1]             # gate effect at fixed scale
+  - [EvieAmplify, EA_noRecenter]  # scale (1/sqrt w) effect given the gate
+  - [EvieAmplify, EA_noWarmup]    # warm-up gate
+  - [EvieAmplify, EA_fixedG0]     # calibration
+  - [EA_noWarmup, EA_fixedSched]  # harmonic schedule
+seeds_per_unit: {vision: [42, 43, 44], finance: [42], language: [42, 43, 44]}
+tune_frac: 0.4
+tune_seeds: {vision: [1001, 1002], finance: [1001], language: [1001]}

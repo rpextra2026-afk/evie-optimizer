@@ -32,27 +32,51 @@ optimizer = EvieAmplifyOptimizer(model.parameters(), lr=1e-3, well_pos_max=8.0)
 
 ```
 evie-optimizer/
-├─ assets/architecture.png  # method diagram
-├─ finance/                 # S&P-100 next-day return regression
-│  ├─ benchmark/            # main benchmark (run1_part*)
-│  ├─ batchsize/            # batch size 2,4,8,16,64
-│  └─ modelscale/           # model-size sweep
-├─ language/                # next-token prediction, 5k vocab
-│  ├─ benchmark/
-│  ├─ batchsize/
-│  └─ model size/
-├─ vision/                  # image classification
+├─ assets/architecture.png      # method diagram
+├─ requirements.txt
+├─ finance/                     # S&P 500 next-day return regression (MLP)
+│  ├─ benchmark/                # benchmark_partA..D
+│  ├─ batchsize/                # batchsize_{2,4,8,16,64}
+│  └─ modelsize/                # modelsize_partA..C
+├─ language/                    # next-token prediction, 5k vocab (NPLM)
 │  ├─ benchmark/
 │  ├─ batchsize/
 │  └─ modelsize/
+├─ vision/                      # image classification (light CNN)
+│  ├─ benchmark/
+│  ├─ batchsize/
+│  └─ modelsize/
+├─ evie_exp/                    # ablation framework (package)
+│  ├─ optim/                    # Evie family, gates, AdaBelief, factory
+│  ├─ domains/                  # finance / language / vision tasks
+│  ├─ protocol/                 # LR search, seeding, budget, resume, stats
+│  ├─ analysis/                 # tables, claim matrix, AdaBelief comparison
+│  ├─ scripts/                  # run_all, run_cell, tune_cell, pack_results
+│  ├─ theory/                   # numerical checks of the theory (r1a..r1g)
+│  └─ configs/                  # profiles and the finance ticker list
 └─ notebooks/
-   ├─ adabelief_all_domains.ipynb   # AdaBelief baseline, all three domains
-   └─ ablation_all_domains.ipynb    # ablation, all three domains
+   ├─ adabelief_all_domains.ipynb   # runs benchmark_partD_adabelief.py in all 3 domains
+   └─ ablation_all_domains.ipynb    # runs the evie_exp ablation in all 3 domains
 ```
 
-## Running
+## Which Script Is What
 
-The notebooks are self-contained: they embed the code they need and run end to end on a Kaggle session (GPU T4 x2, Internet on, *Run All*). Each run stops cleanly after 9 h 55 min, writes a checkpoint, and resumes from it in a new session.
+Every script is self-contained and runs one slice of the experiments. The file name says which slice.
+
+| Suffix | Optimizers it runs | Used for |
+| --- | --- | --- |
+| `benchmark_partA.py` | AdamW, Evie | main benchmark |
+| `benchmark_partB.py` | AdamW, Evie-Amplify | main benchmark |
+| `benchmark_partC.py` | AdamW, Sophia, AdaHessian | main benchmark |
+| `benchmark_partD_adabelief.py` | AdaBelief | AdaBelief baseline, same protocol as parts A to C |
+| `modelsize_partA/B/C.py` | same split as the benchmark parts | model-size sweep |
+| `batchsize_N.py` | AdamW, Evie, Evie-Amplify, Sophia, AdaHessian | batch size N (2, 4, 8, 16, 64) |
+
+The parts are a parallel split of one experiment so that each fits into a single session. Each part includes AdamW, so AdamW is re-run in every part and differs slightly between parts. Install the dependencies with `pip install -r requirements.txt`, then run a script directly, for example `python finance/benchmark/benchmark_partA.py`.
+
+## Running the Notebooks
+
+The notebooks are self-contained: they embed the code they need and run end to end on a Kaggle session (GPU T4 x2, Internet on, *Run All*). Each run stops cleanly after 9 h 55 min, writes a checkpoint, and resumes from it in a new session. The embedded code is the same as the files in `evie_exp/` and the `benchmark_partD_adabelief.py` scripts.
 
 ## Benchmark Results
 
@@ -93,7 +117,7 @@ AdaBelief (`eps=1e-16`, decoupled weight decay 1e-4, no rectification) was run a
 | AdaHessian | 20.80 +/- 0.48 | 45.34 +/- 0.52 | 3.388 +/- 0.0092 |
 | AdaBelief | 37.50 +/- 0.31 | 66.41 +/- 0.58 | 2.519 +/- 0.040 |
 
-On these benchmarks AdaBelief is comparable to AdamW and Evie on language and vision, and has the lowest finance MSE and RMSE. Differences between Evie, Evie-Amplify, AdamW and AdaBelief are mostly within one standard deviation; Sophia is clearly best on language and AdaHessian is clearly worst on language and vision. The model-size and batch-size sweeps are in the scripts under each domain folder.
+On these benchmarks AdaBelief is comparable to AdamW and Evie on language and vision, and has the lowest finance MSE and RMSE. Differences between Evie, Evie-Amplify, AdamW and AdaBelief are mostly within one standard deviation; Sophia is clearly best on language and AdaHessian is clearly worst on language and vision. The model-size and batch-size sweeps are produced by the scripts under each domain folder.
 
 ## License
 
