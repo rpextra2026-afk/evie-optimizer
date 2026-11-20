@@ -1,0 +1,186 @@
+{
+  "spec_version": "1.0",
+  "master_seed": 20261120,
+  "dtype": "float64",
+  "device": "cpu",
+  "workers": 4,
+  "threads_per_worker": 1,
+  "memory_limit_gib": 2,
+  "disk_limit_gib": 1,
+  "wall_time_seconds": 7200,
+  "groups": [
+    "R0",
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6"
+  ],
+  "rate_search": {
+    "log_points": 257,
+    "linear_points": 257,
+    "u_min": 1e-12,
+    "u_join": 0.1,
+    "u_max": 0.9999999999,
+    "validation_grid_multiplier": 2,
+    "mpmath_dps": 80
+  },
+  "r2": {
+    "horizons": [
+      8,
+      128,
+      2048
+    ],
+    "dimensions": [
+      2,
+      16
+    ],
+    "log_std_spreads": [
+      0,
+      0.75,
+      1.5
+    ],
+    "noise_std_bases": [
+      0.1,
+      1.0
+    ],
+    "normalizers": [
+      "constant",
+      "total_second_moment"
+    ],
+    "betas": [
+      0.0,
+      0.9
+    ],
+    "target_w": 0.85,
+    "gamma_min": 10.0,
+    "gamma_max": 5000.0,
+    "reference_variance_floor": 1e-12
+  },
+  "r3": {
+    "seeds": [
+      101,
+      103,
+      107,
+      109,
+      113
+    ],
+    "dimensions": [
+      2,
+      5
+    ],
+    "horizons": [
+      64,
+      256,
+      1024,
+      4096,
+      16384,
+      65536
+    ],
+    "betas": [
+      0.0,
+      0.9
+    ],
+    "h_c_sigma_eigenvalue_range": [
+      0.5,
+      2.0
+    ],
+    "p_d_eigenvalue_range": [
+      0.5,
+      1.5
+    ]
+  },
+  "r4": {
+    "seeds": [
+      101,
+      107,
+      113
+    ],
+    "dimensions": [
+      2,
+      5,
+      8
+    ],
+    "horizons": [
+      2,
+      8,
+      32,
+      128
+    ],
+    "betas": [
+      0.0,
+      0.9
+    ],
+    "max_effective_step": 0.8
+  },
+  "r5": {
+    "dimension": 8,
+    "tensor_sizes": [
+      2,
+      6
+    ],
+    "horizons": [
+      512,
+      2048
+    ],
+    "hessian_profiles": [
+      "identity",
+      "diagonal_1_to_8"
+    ],
+    "noise_std_base": 0.25,
+    "log_std_spread": 1.0,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "fast_beta": 0.9,
+    "eps": 1e-08,
+    "weight_decay": 0.0001,
+    "target_w": 0.85,
+    "clip_norm": 5.0,
+    "calibrate_after_updates": 126,
+    "initial_gamma0": 1.0,
+    "tuning_seed_start": 0,
+    "tuning_seed_count": 8,
+    "evaluation_seed_start": 10000,
+    "evaluation_seed_count": 128,
+    "rate_grid": [
+      1e-05,
+      3e-05,
+      0.0001,
+      0.0003,
+      0.001,
+      0.003,
+      0.01,
+      0.03,
+      0.1,
+      0.3,
+      1.0
+    ],
+    "maximum_rate_grid_extensions": 1
+  },
+  "r6": {
+    "local_horizons": [
+      2,
+      3,
+      10,
+      50,
+      2000
+    ],
+    "proxy_exponents": [
+      0.25,
+      0.5,
+      1.0
+    ],
+    "proxy_calibrations": [
+      0.1,
+      0.5,
+      1.0,
+      2.0,
+      10.0
+    ],
+    "proxy_r_min": 1e-08,
+    "proxy_r_max": 100000000.0,
+    "proxy_r_points": 401,
+    "capped_scalar_oracle_check": true
+  }
+}

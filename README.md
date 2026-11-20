@@ -54,6 +54,7 @@ evie-optimizer/
 │  ├─ scripts/                  # run_all, run_cell, tune_cell, pack_results
 │  ├─ theory/                   # numerical checks of the theory (r1a..r1g)
 │  └─ configs/                  # profiles and the finance ticker list
+├─ cpu_checks/                  # synthetic CPU validation and local optimizer references
 └─ notebooks/
    ├─ adabelief_all_domains.ipynb   # runs benchmark_partD_adabelief.py in all 3 domains
    └─ ablation_all_domains.ipynb    # runs the evie_exp ablation in all 3 domains
@@ -77,6 +78,19 @@ The parts are a parallel split of one experiment so that each fits into a single
 ## Running the Notebooks
 
 The notebooks are self-contained: they embed the code they need and run end to end on a Kaggle session (GPU T4 x2, Internet on, *Run All*). Each run stops cleanly after 9 h 55 min, writes a checkpoint, and resumes from it in a new session. The embedded code is the same as the files in `evie_exp/` and the `benchmark_partD_adabelief.py` scripts.
+
+## CPU mathematical checks
+
+The synthetic finite-horizon validation suite is in [`cpu_checks/`](cpu_checks/README.md). It checks exact-loss calculations, optimizer correspondence, calibrated gates, momentum expansions, noncommuting matrices, adaptive-reference behavior, and scalar bounds using CPU arithmetic.
+
+```bash
+python -m pip install -r cpu_checks/requirements.txt
+PYTHONPATH=cpu_checks python -m unittest discover -s cpu_checks/tests
+python cpu_checks/run.py --profile smoke --source-root .
+python cpu_checks/run.py --profile core --source-root .
+```
+
+The suite reads its reference optimizer modules and the existing benchmark classes without starting training. Generated CPU artifacts stay in a gitignored output folder. See the CPU-check README for resume, verification, output-path options, and the scope of each check.
 
 ## Benchmark Results
 

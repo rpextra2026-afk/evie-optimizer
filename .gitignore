@@ -7,3 +7,7 @@ __pycache__/
 *.key
 credentials.json
 secrets.json
+/cpu_checks/results/
+/cpu_checks/outputs/
+.pytest_cache/
+*.log
